@@ -1,5 +1,7 @@
 mod utils;
 
+use rand::prelude::*;
+use std::cmp;
 use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -8,18 +10,14 @@ use wasm_bindgen::prelude::*;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-// #[wasm_bindgen]
-// extern {
-//     fn alert(s: &str);
-// }
+extern crate web_sys;
 
-// #[wasm_bindgen]
-// pub fn greet() {
-//     alert("Hello, wasm-genetic-programming!");
-// }
-
-use rand::prelude::*;
-use std::cmp;
+// A macro to provide `log!(..)`-style syntax for `console.log` logging.
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
 
 pub struct Config {
     pub pop_size: u16,
@@ -35,12 +33,26 @@ pub struct Config {
     pub tree_limit_running: u16,
 }
 
+// #[wasm_bindgen]
+// impl Config {
+//     #[wasm_bindgen(getter)]
+//     pub fn selection(&self) -> String {
+//         self.selection.clone()
+//     }
+
+//     #[wasm_bindgen(setter)]
+//     pub fn set_selection(&mut self, selection: String) {
+//         self.selection = selection;
+//     }
+// }
+
 #[derive(Debug, Clone)]
 pub struct Member {
     chromosome: Node,
     fitness: f64,
 }
 
+#[wasm_bindgen]
 pub struct GP {
     fitness: Vec<[f64; 2]>,
     config: Config,
@@ -54,6 +66,7 @@ enum Action {
     X,
 }
 
+#[wasm_bindgen]
 #[derive(Debug, Clone)]
 struct Node {
     action: Action,
@@ -61,16 +74,46 @@ struct Node {
     arg2: Option<Box<Node>>,
 }
 
+#[wasm_bindgen]
 impl GP {
-    pub fn new(fitness: Vec<[f64; 2]>, config: Config) -> Self {
+    pub fn new(fitness_array: Vec<f64>) -> Self {
+        let mut fitness: Vec<[f64; 2]> = Vec::new();
+        let mut pair: [f64; 2] = [0.0, 0.0];
+        for (index, value) in fitness_array.iter().enumerate() {
+            pair[index % 2] = *value;
+            if index % 2 == 1 {
+                fitness.push(pair);
+                pair = [0.0, 0.0];
+            }
+        }
+
         Self {
             fitness,
-            config,
+            config: Config {
+                pop_size: 4000,
+                max_generations: 51,
+                mutate_prob: 0.02,
+                selection: "tournament".to_string(),
+                fitness_order: "desc".to_string(),
+                chromosome_function: ["+", "-", "*", "/", "sin", "cos", "exp"]
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect(),
+                chromosome_terminal: vec!["x".to_string(), "R".to_string()],
+                chromosome_combined: ["+", "-", "*", "/", "sin", "cos", "exp", "x", "R"]
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect(),
+                max_fitness_evals: 20000,
+                tree_limit_initial: 6,
+                tree_limit_running: 17,
+            },
             fitness_evaluations: 0,
         }
     }
 
     pub fn run(mut self) {
+        utils::set_panic_hook();
         //make initial random population
         let mut population: Vec<Member> = Vec::new();
         let mut i = 0;
@@ -91,7 +134,9 @@ impl GP {
         }
         self.iter_gp(population);
     }
+}
 
+impl GP {
     fn generate_chromosome(&self, grow: bool) -> Node {
         self.generate_chromosome_recursive(self.config.tree_limit_initial, grow)
     }
@@ -208,9 +253,9 @@ impl GP {
             }
 
             //report best so far
-            println!("Generation {}: ", gen);
+            log!("Generation {}: ", gen);
             if let Some(member) = population.last() {
-                println!(
+                log!(
                     "Best ({}): {:?}",
                     member.fitness,
                     self.chromosome_to_string(&member.chromosome),
@@ -274,16 +319,16 @@ impl GP {
 
             gen += 1;
         }
-        println!("RUN COMPLETED ======================");
-        println!("Generations: {}", gen);
+        log!("RUN COMPLETED ======================");
+        log!("Generations: {}", gen);
         if let Some(member) = population.last() {
-            println!(
+            log!(
                 "Best ({}): {:?}",
                 member.fitness,
                 self.chromosome_to_string(&member.chromosome),
             );
         }
-        println!("Fitness Evaluations: {}", self.fitness_evaluations);
+        log!("Fitness Evaluations: {}", self.fitness_evaluations);
     }
 
     fn select_from_population(&self, population: &[Member]) -> Member {
