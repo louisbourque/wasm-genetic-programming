@@ -149,7 +149,15 @@ export default {
       this.fitness = new_fitness || default_fitness
     },
     start: function () {
-      let myGP = wasm.GP.new([1, 2, 3, 4])
+      let fitness_array = this.fitness
+        .flat()
+        .map((value) => parseInt(value))
+        .filter((val) => !isNaN(val))
+      if (fitness_array.length === 0 || fitness_array.length % 2 !== 0) {
+        console.error('invalid input')
+        return
+      }
+      let myGP = wasm.GP.new(fitness_array)
       myGP.run()
     },
   },
