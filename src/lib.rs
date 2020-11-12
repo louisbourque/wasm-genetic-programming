@@ -57,6 +57,9 @@ pub struct GP {
     fitness: Vec<[f64; 2]>,
     config: Config,
     fitness_evaluations: usize,
+    gen: u16,
+    population: Vec<Member>,
+    done: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -109,10 +112,13 @@ impl GP {
                 tree_limit_running: 17,
             },
             fitness_evaluations: 0,
+            gen: 0,
+            population: Vec::new(),
+            done: false,
         }
     }
 
-    pub fn run(mut self) {
+    pub fn init(&mut self) {
         utils::set_panic_hook();
         //make initial random population
         let mut population: Vec<Member> = Vec::new();
@@ -132,7 +138,113 @@ impl GP {
                 break;
             }
         }
-        self.iter_gp(population);
+        self.population = population;
+    }
+
+    pub fn tick(&mut self) -> String {
+        utils::set_panic_hook();
+        let mut rng = rand::thread_rng();
+        self.gen += 1;
+
+        //termination sat for run?
+        //if best solution has a fitness less than 0.001, we can stop
+        if self.config.max_generations <= self.gen
+            || self.population.last().unwrap().fitness < 0.001
+            || self.done
+        {
+            log!("RUN COMPLETED ======================");
+            log!("Generations: {}", self.gen);
+            log!("Fitness Evaluations: {}", self.fitness_evaluations);
+            self.done = true;
+            let mut best_member_fitness = 0.0;
+            let mut best_member_string = String::new();
+            if let Some(member) = self.population.last() {
+                best_member_fitness = member.fitness;
+                best_member_string = self.chromosome_to_string(&member.chromosome);
+            }
+            return format!(
+                "{{\"done\": {}, \"fitness\":{} ,\"best\":\"{}\",\"gen\":\"{}\"}}",
+                true, best_member_fitness, best_member_string, self.gen
+            );
+        }
+
+        let mut new_population: Vec<Member> = Vec::new();
+        let mut i = 0;
+        while i < self.population.len() {
+            let rnum: f64 = rng.gen();
+            //10% chance of reproduction, 90% chance of crossover
+            if rnum > 0.9 {
+                //select one individual based on fitness
+                let individual = self.select_from_population(&self.population);
+                //insert copy in new pop
+                if self.insert_into_population(individual, &mut new_population) {
+                    i += 1;
+                }
+            } else {
+                //select two individuals based on fitness
+                let individual1 = self.select_from_population(&self.population);
+                let individual2 = self.select_from_population(&self.population);
+                //perform crossover
+                let chromosome1 =
+                    self.crossover_function(&individual1.chromosome, &individual2.chromosome);
+                let child1 = Member {
+                    fitness: self.measure_fitness(&chromosome1),
+                    chromosome: chromosome1,
+                };
+                let chromosome2 =
+                    self.crossover_function(&individual1.chromosome, &individual2.chromosome);
+                let child2 = Member {
+                    fitness: self.measure_fitness(&chromosome2),
+                    chromosome: chromosome2,
+                };
+
+                let mut candidates: Vec<Member> = Vec::new();
+                candidates.push(individual1);
+                candidates.push(individual2);
+                candidates.push(child1);
+                candidates.push(child2);
+                if self.config.fitness_order == "desc" {
+                    candidates.sort_by(|a, b| b.fitness.partial_cmp(&a.fitness).unwrap());
+                } else {
+                    candidates.sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap());
+                }
+                if self.insert_into_population(candidates.pop().unwrap(), &mut new_population) {
+                    i += 1;
+                }
+                if self.insert_into_population(candidates.pop().unwrap(), &mut new_population) {
+                    i += 1;
+                }
+            }
+        }
+        //if new_population is shorter than population, then we hit a stop condition. The best solution
+        // may be in population, fill new population with the best of population so they are of the same size
+        while new_population.len() < self.population.len() {
+            new_population.push(self.population.remove(0))
+        }
+        self.population = new_population;
+
+        //sort population by fitness
+        if self.config.fitness_order == "desc" {
+            self.population
+                .sort_by(|a, b| b.fitness.partial_cmp(&a.fitness).unwrap());
+        //unwrap_or(Ordering::Less)
+        } else {
+            self.population
+                .sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap());
+        }
+
+        //report best so far
+        log!("Generation {}: ", self.gen);
+        let mut best_member_fitness = 0.0;
+        let mut best_member_string = String::new();
+        if let Some(member) = self.population.last() {
+            best_member_fitness = member.fitness;
+            best_member_string = self.chromosome_to_string(&member.chromosome);
+        }
+        return format!(
+            "{{\"done\": {}, \"fitness\":{} ,\"best\":\"{}\",\"gen\":\"{}\"}}",
+            false, best_member_fitness, best_member_string, self.gen
+        );
     }
 }
 
@@ -228,107 +340,6 @@ impl GP {
             Action::Terminal(number) => *number,
             Action::X => x,
         }
-    }
-
-    fn iter_gp(mut self, mut population: Vec<Member>) {
-        let mut gen: u16 = 0;
-        let mut rng = rand::thread_rng();
-        loop {
-            //termination sat for run?
-            if self.config.max_generations == gen {
-                break;
-            }
-
-            //sort population by fitness
-            if self.config.fitness_order == "desc" {
-                population.sort_by(|a, b| b.fitness.partial_cmp(&a.fitness).unwrap());
-            //unwrap_or(Ordering::Less)
-            } else {
-                population.sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap());
-            }
-
-            //if best solution has a fitness less than 0.001, we can stop
-            if population.last().unwrap().fitness < 0.001 {
-                break;
-            }
-
-            //report best so far
-            log!("Generation {}: ", gen);
-            if let Some(member) = population.last() {
-                log!(
-                    "Best ({}): {:?}",
-                    member.fitness,
-                    self.chromosome_to_string(&member.chromosome),
-                );
-            }
-
-            let mut new_population: Vec<Member> = Vec::new();
-            let mut i = 0;
-            while i < population.len() {
-                let rnum: f64 = rng.gen();
-                //10% chance of reproduction, 90% chance of crossover
-                if rnum > 0.9 {
-                    //select one individual based on fitness
-                    let individual = self.select_from_population(&population);
-                    //insert copy in new pop
-                    if self.insert_into_population(individual, &mut new_population) {
-                        i += 1;
-                    }
-                } else {
-                    //select two individuals based on fitness
-                    let individual1 = self.select_from_population(&population);
-                    let individual2 = self.select_from_population(&population);
-                    //perform crossover
-                    let chromosome1 =
-                        self.crossover_function(&individual1.chromosome, &individual2.chromosome);
-                    let child1 = Member {
-                        fitness: self.measure_fitness(&chromosome1),
-                        chromosome: chromosome1,
-                    };
-                    let chromosome2 =
-                        self.crossover_function(&individual1.chromosome, &individual2.chromosome);
-                    let child2 = Member {
-                        fitness: self.measure_fitness(&chromosome2),
-                        chromosome: chromosome2,
-                    };
-
-                    let mut candidates: Vec<Member> = Vec::new();
-                    candidates.push(individual1);
-                    candidates.push(individual2);
-                    candidates.push(child1);
-                    candidates.push(child2);
-                    if self.config.fitness_order == "desc" {
-                        candidates.sort_by(|a, b| b.fitness.partial_cmp(&a.fitness).unwrap());
-                    } else {
-                        candidates.sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap());
-                    }
-                    if self.insert_into_population(candidates.pop().unwrap(), &mut new_population) {
-                        i += 1;
-                    }
-                    if self.insert_into_population(candidates.pop().unwrap(), &mut new_population) {
-                        i += 1;
-                    }
-                }
-            }
-            //if new_population is shorter than population, then we hit a stop condition. The best solution
-            // may be in population, fill new population with the best of population so they are of the same size
-            while new_population.len() < population.len() {
-                new_population.push(population.remove(0))
-            }
-            population = new_population;
-
-            gen += 1;
-        }
-        log!("RUN COMPLETED ======================");
-        log!("Generations: {}", gen);
-        if let Some(member) = population.last() {
-            log!(
-                "Best ({}): {:?}",
-                member.fitness,
-                self.chromosome_to_string(&member.chromosome),
-            );
-        }
-        log!("Fitness Evaluations: {}", self.fitness_evaluations);
     }
 
     fn select_from_population(&self, population: &[Member]) -> Member {

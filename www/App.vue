@@ -8,6 +8,7 @@
     >&nbsp;&nbsp;
     <button @click="load(c_fitness)">Load: x + 1</button>&nbsp;&nbsp;
     <button @click="start()">Start</button>&nbsp;&nbsp;
+    <button style="color:red;" @click="stop()">Stop</button>&nbsp;&nbsp;
     <br />
     <canvas
       id="canvas"
@@ -30,6 +31,18 @@
         </tbody>
       </table>
     </div>
+    <span>
+      <div v-for="result in results" :key="result.gen">
+        <span v-if="result.done"
+          >Answer: <strong>{{ result.best }}</strong
+          ><br />With a fitness of <strong>{{ result.fitness }}</strong></span
+        >
+        <span v-else
+          >Best function of Generation {{ result.gen }}
+          <strong>({{ result.fitness }})</strong> : {{ result.best }}</span
+        >
+      </div>
+    </span>
   </div>
 </template>
 <script>
@@ -139,16 +152,19 @@ export default {
       b_fitness,
       c_fitness,
       default_fitness,
+      running: false,
+      results: [],
     }
   },
-  mounted: function () {
-    console.log(this)
-  },
+  mounted: function() {},
   methods: {
-    load: function (new_fitness) {
+    load: function(new_fitness) {
       this.fitness = new_fitness || default_fitness
     },
-    start: function () {
+    start: function() {
+      if (this.running) {
+        return
+      }
       let fitness_array = this.fitness
         .flat()
         .map((value) => parseInt(value))
@@ -157,8 +173,27 @@ export default {
         console.error('invalid input')
         return
       }
+      this.running = true
       let myGP = wasm.GP.new(fitness_array)
-      myGP.run()
+      myGP.init()
+      const renderLoop = () => {
+        if (!this.running) {
+          return
+        }
+        const result = JSON.parse(myGP.tick())
+        console.log('result', result)
+
+        this.results.unshift(result)
+        if (result.done) {
+          this.running = false
+          return
+        }
+        requestAnimationFrame(renderLoop)
+      }
+      requestAnimationFrame(renderLoop)
+    },
+    stop: function() {
+      this.running = false
     },
   },
 }
