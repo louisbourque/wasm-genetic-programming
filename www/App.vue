@@ -292,7 +292,7 @@ export default {
       }
 
       ctx.beginPath()
-      ctx.moveTo(0, this.eval_tree(function_tree, -5.0))
+      ctx.moveTo(0, 200 - this.eval_tree(function_tree, -5.0) * 40)
       for (var x = -5.0; x <= 5; x = x + 1 / 40) {
         ctx.lineTo(200 + x * 40, 200 - this.eval_tree(function_tree, x) * 40)
       }
