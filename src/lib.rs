@@ -153,7 +153,6 @@ impl GP {
             || self.done
         {
             log!("RUN COMPLETED ======================");
-            log!("Generations: {}", self.gen);
             log!("Fitness Evaluations: {}", self.fitness_evaluations);
             self.done = true;
             let mut best_member_fitness = 0.0;
@@ -229,14 +228,12 @@ impl GP {
         if self.config.fitness_order == "desc" {
             self.population
                 .sort_by(|a, b| b.fitness.partial_cmp(&a.fitness).unwrap());
-        //unwrap_or(Ordering::Less)
         } else {
             self.population
                 .sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap());
         }
 
-        //report best so far
-        log!("Generation {}: ", self.gen);
+        //return best so far
         let mut best_member_fitness = 0.0;
         let mut best_member_string = String::new();
         let mut best_member_json = String::new();
