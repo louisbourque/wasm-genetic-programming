@@ -168,7 +168,7 @@ export default {
       this.results = []
       let fitness_array = this.fitness
         .flat()
-        .map((value) => parseInt(value))
+        .map((value) => parseFloat(value))
         .filter((val) => !isNaN(val))
       if (fitness_array.length === 0 || fitness_array.length % 2 !== 0) {
         console.error('invalid input')
