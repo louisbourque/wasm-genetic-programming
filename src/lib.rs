@@ -158,13 +158,15 @@ impl GP {
             self.done = true;
             let mut best_member_fitness = 0.0;
             let mut best_member_string = String::new();
+            let mut best_member_json = String::new();
             if let Some(member) = self.population.last() {
                 best_member_fitness = member.fitness;
                 best_member_string = self.chromosome_to_string(&member.chromosome);
+                best_member_json = self.chromosome_to_json(&member.chromosome);
             }
             return format!(
-                "{{\"done\": {}, \"fitness\":{} ,\"best\":\"{}\",\"gen\":\"{}\"}}",
-                true, best_member_fitness, best_member_string, self.gen
+                "{{\"done\": {}, \"fitness\":{} ,\"best\":\"{}\",\"gen\":\"{}\", \"chromosome\":{}}}",
+                true, best_member_fitness, best_member_string, self.gen, best_member_json
             );
         }
 
@@ -237,13 +239,15 @@ impl GP {
         log!("Generation {}: ", self.gen);
         let mut best_member_fitness = 0.0;
         let mut best_member_string = String::new();
+        let mut best_member_json = String::new();
         if let Some(member) = self.population.last() {
             best_member_fitness = member.fitness;
             best_member_string = self.chromosome_to_string(&member.chromosome);
+            best_member_json = self.chromosome_to_json(&member.chromosome);
         }
         return format!(
-            "{{\"done\": {}, \"fitness\":{} ,\"best\":\"{}\",\"gen\":\"{}\"}}",
-            false, best_member_fitness, best_member_string, self.gen
+            "{{\"done\": {}, \"fitness\":{} ,\"best\":\"{}\",\"gen\":\"{}\", \"chromosome\":{}}}",
+            false, best_member_fitness, best_member_string, self.gen, best_member_json
         );
     }
 }
@@ -503,6 +507,59 @@ impl GP {
             }
             Action::Terminal(number) => number.to_string(),
             Action::X => "x".to_string(),
+        }
+    }
+
+    fn chromosome_to_json(&self, chromosome: &Node) -> String {
+        match &chromosome.action {
+            Action::Function(function_name) => {
+                if let Some(arg1) = &chromosome.arg1 {
+                    if let Some(arg2) = &chromosome.arg2 {
+                        return match function_name.as_str() {
+                            "+" => format!(
+                                "{{\"action\":\"+\",\"arg1\":{},\"arg2\":{}}}",
+                                self.chromosome_to_json(arg1),
+                                self.chromosome_to_json(arg2)
+                            ),
+                            "-" => format!(
+                                "{{\"action\":\"-\",\"arg1\":{},\"arg2\":{}}}",
+                                self.chromosome_to_json(arg1),
+                                self.chromosome_to_json(arg2)
+                            ),
+                            "*" => format!(
+                                "{{\"action\":\"*\",\"arg1\":{},\"arg2\":{}}}",
+                                self.chromosome_to_json(arg1),
+                                self.chromosome_to_json(arg2)
+                            ),
+                            "/" => format!(
+                                "{{\"action\":\"/\",\"arg1\":{},\"arg2\":{}}}",
+                                self.chromosome_to_json(arg1),
+                                self.chromosome_to_json(arg2)
+                            ),
+                            "sin" => format!(
+                                "{{\"action\":\"sin\",\"arg1\":{}}}",
+                                self.chromosome_to_json(arg1)
+                            ),
+
+                            "cos" => format!(
+                                "{{\"action\":\"cos\",\"arg1\":{}}}",
+                                self.chromosome_to_json(arg1)
+                            ),
+
+                            "exp" => format!(
+                                "{{\"action\":\"exp\",\"arg1\":{},\"arg2\":{}}}",
+                                self.chromosome_to_json(arg1),
+                                self.chromosome_to_json(arg2)
+                            ),
+
+                            _ => "".to_string(),
+                        };
+                    }
+                }
+                "(error)".to_string()
+            }
+            Action::Terminal(number) => format!("{{\"action\":{}}}", number),
+            Action::X => "{\"action\":\"x\"}".to_string(),
         }
     }
 }
