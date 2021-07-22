@@ -174,16 +174,15 @@ impl GP {
         while i < self.population.len() {
             let rnum: f64 = rng.gen();
             //10% chance of reproduction, 90% chance of crossover
+            //select one individual based on fitness
+            let individual1 = self.select_from_population(&self.population);
             if rnum > 0.9 {
-                //select one individual based on fitness
-                let individual = self.select_from_population(&self.population);
                 //insert copy in new pop
-                if self.insert_into_population(individual, &mut new_population) {
+                if self.insert_into_population(individual1, &mut new_population) {
                     i += 1;
                 }
             } else {
                 //select two individuals based on fitness
-                let individual1 = self.select_from_population(&self.population);
                 let individual2 = self.select_from_population(&self.population);
                 //perform crossover
                 let chromosome1 =
@@ -199,11 +198,7 @@ impl GP {
                     chromosome: chromosome2,
                 };
 
-                let mut candidates: Vec<Member> = Vec::new();
-                candidates.push(individual1);
-                candidates.push(individual2);
-                candidates.push(child1);
-                candidates.push(child2);
+                let mut candidates: Vec<Member> = vec![individual1, individual2, child1, child2];
                 if self.config.fitness_order == "desc" {
                     candidates.sort_by(|a, b| b.fitness.partial_cmp(&a.fitness).unwrap());
                 } else {
