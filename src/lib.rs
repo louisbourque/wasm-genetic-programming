@@ -300,7 +300,7 @@ impl GP {
 
         for x_y in self.fitness.as_slice() {
             x = x_y[0];
-            let eval_res = self.eval_tree(&chromosome, x);
+            let eval_res = self.eval_tree(chromosome, x);
             let abs = (x_y[1] - eval_res).abs();
             fitness += abs;
         }
@@ -326,7 +326,7 @@ impl GP {
                             "/" => self.eval_tree(arg1, x) / self.eval_tree(arg2, x),
                             "sin" => (self.eval_tree(arg1, x)).sin(),
                             "cos" => (self.eval_tree(arg1, x)).cos(),
-                            "exp" => (self.eval_tree(arg1, x)).powf(self.eval_tree(&arg2, x)),
+                            "exp" => (self.eval_tree(arg1, x)).powf(self.eval_tree(arg2, x)),
                             _ => 9999999.0,
                         };
                     }
@@ -449,7 +449,7 @@ impl GP {
     fn count_node_depth(&self, node: &Node) -> u16 {
         if let Some(arg1) = &node.arg1 {
             if let Some(arg2) = &node.arg2 {
-                return cmp::max(self.count_node_depth(&arg1), self.count_node_depth(&arg2)) + 1;
+                return cmp::max(self.count_node_depth(arg1), self.count_node_depth(arg2)) + 1;
             }
         }
         1
